@@ -3,65 +3,94 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>제주 미세먼지</title>
+<title>제주 미세먼지 지도</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <style>
-  :root { --bg:#f7f7f5; --card:#fff; --line:#e3e2dc; --text:#222; --sub:#6b6a64; }
+  :root { --bg:#f6f6f3; --card:#fff; --line:#e3e2dc; --text:#222; --sub:#6b6a64; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text);
-         font-family:system-ui,-apple-system,"Segoe UI","Malgun Gothic",sans-serif; line-height:1.6; }
-  main { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
-  h1 { font-size:22px; margin:0 0 4px; }
-  .sub { color:var(--sub); font-size:14px; margin:0 0 16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:12px; }
-  .status { font-size:13px; color:var(--sub); display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  .chip { border:1px solid var(--line); border-radius:999px; padding:1px 10px; background:#fafaf8; }
+         font-family:system-ui,-apple-system,"Segoe UI","Malgun Gothic",sans-serif; line-height:1.5; }
+  main { max-width:920px; margin:0 auto; padding:20px 16px 48px; }
+  header { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:8px; margin-bottom:12px; }
+  h1 { font-size:22px; margin:0; }
+  .sub { color:var(--sub); font-size:13px; margin:2px 0 0; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .chip { font-size:12px; border:1px solid var(--line); border-radius:999px; padding:1px 10px; background:#fff; color:var(--sub); }
   .chip.ok { border-color:#27ae60; color:#1e8449; }
   .chip.bad { border-color:#eb5757; color:#c0392b; }
-  .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
-  .metric { background:#fafaf8; border-radius:8px; padding:10px 12px; }
-  .metric .k { font-size:12px; color:var(--sub); }
-  .metric .v { font-size:22px; font-weight:600; }
-  table { width:100%; border-collapse:collapse; font-size:14px; }
-  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
-  th { color:var(--sub); font-weight:500; font-size:13px; }
-  .badge { color:#fff; border-radius:6px; padding:1px 8px; font-size:12px; white-space:nowrap; }
-  button { font:inherit; font-size:13px; padding:4px 10px; border:1px solid var(--line); background:#fff;
-           border-radius:8px; cursor:pointer; }
+  button { font:inherit; font-size:13px; padding:4px 10px; border:1px solid var(--line); background:#fff; border-radius:8px; cursor:pointer; }
   button:hover { background:#f0f0ec; }
-  .pred { margin-top:12px; padding:10px 12px; background:#f1f6ff; border-radius:8px; font-size:14px; }
-  .err { color:#c0392b; font-size:14px; white-space:pre-wrap; }
-  .scroll { overflow-x:auto; }
+
+  #sum { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+         border:1px solid; border-radius:14px; padding:14px 18px; margin-bottom:12px; background:#fff; }
+  #sum .big { font-size:44px; font-weight:600; line-height:1.1; }
+  #sum .lab { font-size:13px; }
+  #sum .right { text-align:right; font-size:13px; }
+
+  .pill { display:inline-block; font-size:12px; font-weight:600; color:#fff; border-radius:6px; padding:1px 8px; }
+
+  #map { height:460px; border-radius:14px; border:1px solid var(--line); overflow:hidden; background:#dfe7ee; }
+  .mk-wrap { background:none; border:none; }
+  .mk { display:flex; flex-direction:column; align-items:center; }
+  .mk-n { min-width:44px; height:44px; padding:0 4px; border-radius:50%; color:#fff; font-weight:700; font-size:16px;
+          display:flex; align-items:center; justify-content:center; border:3px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.4); }
+  .mk-nm { margin-top:2px; font-size:12px; font-weight:600; color:#222; white-space:nowrap;
+           text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff; }
+  #map.low .mk-nm { display:none; }
+  #map.low .mk-n { min-width:32px; height:32px; font-size:13px; border-width:2px; }
+  .pop b { font-size:15px; }
+  .pop div { margin-top:4px; font-size:13px; }
+  .pop .pr { margin-top:8px; padding:6px 8px; background:#f1f6ff; border-radius:6px; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0; font-size:12px; color:var(--sub); align-items:center; }
+
+  #cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-top:14px; }
+  .card { border:1px solid; border-radius:12px; padding:10px 12px; cursor:pointer; }
+  .card .nm { font-size:14px; font-weight:600; }
+  .card .v { font-size:28px; font-weight:600; line-height:1.2; }
+  .card .s { font-size:12px; margin-top:2px; }
+  h2 { font-size:14px; margin:18px 0 0; color:var(--sub); font-weight:500; }
+  .err { color:#c0392b; font-size:14px; white-space:pre-wrap; margin-top:10px; }
+  .note { font-size:12px; color:var(--sub); margin-top:14px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>제주 미세먼지</h1>
-  <p class="sub">공공데이터(에어코리아) → FastAPI 가공 → Supabase 저장 → 이 화면은 결과만 받아 보여 줍니다.</p>
-
-  <div class="card">
-    <div class="status" id="status">서버 연결 확인 중…</div>
-  </div>
-
-  <div class="card">
-    <div class="metrics" id="metrics"></div>
-  </div>
-
-  <div class="card">
-    <div class="scroll">
-      <table>
-        <thead><tr><th>측정소</th><th>시각</th><th>PM10</th><th>PM2.5</th><th>예측</th></tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
+  <header>
+    <div>
+      <h1>제주 미세먼지 지도</h1>
+      <p class="sub">공공데이터(에어코리아) → FastAPI 가공 → Supabase 저장 → 지도에는 결과만 표시</p>
     </div>
-    <div id="pred"></div>
-    <p class="err" id="err"></p>
-  </div>
+    <div class="chips" id="status"><span class="chip">서버 연결 확인 중…</span></div>
+  </header>
+
+  <div id="sum"></div>
+  <div id="map"></div>
+  <div class="legend" id="legend"></div>
+
+  <h2>측정소 목록 (누르면 지도로 이동)</h2>
+  <div id="cards"></div>
+  <p class="err" id="err"></p>
+  <p class="note">측정소 위치는 대략적인 좌표입니다. 지도 © OpenStreetMap 기여자</p>
 </main>
 
 <script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script>
 const API = window.API_BASE;
+const GRADES = ["좋음", "보통", "나쁨", "매우나쁨"];
 const COLOR = { "좋음": "#2f80ed", "보통": "#27ae60", "나쁨": "#f2994a", "매우나쁨": "#eb5757" };
+const TINT = { "좋음": "#eaf2fe", "보통": "#e8f6ed", "나쁨": "#fdf0e3", "매우나쁨": "#fdeaea" };
+const RANGE = { "좋음": "0~30", "보통": "31~80", "나쁨": "81~150", "매우나쁨": "151~" };
+
+const POS = {
+  "연동": [33.4890, 126.4930], "이도동": [33.5020, 126.5420], "삼양동": [33.5230, 126.5850],
+  "조천읍": [33.5360, 126.6350], "성산읍": [33.4470, 126.9150], "표선면": [33.3250, 126.8370],
+  "남원읍": [33.2780, 126.7180], "동홍동": [33.2540, 126.5790], "대정읍": [33.2240, 126.2530],
+  "고산리": [33.2950, 126.1650], "한림읍": [33.4120, 126.2650], "애월읍": [33.4640, 126.3310],
+  "우도면": [33.5000, 126.9540], "강정동": [33.2400, 126.4830], "제주항": [33.5190, 126.5330],
+  "노형로": [33.4870, 126.4780], "화북동": [33.5170, 126.5650]
+};
 
 function el(tag, text, cls) {
   const e = document.createElement(tag);
@@ -69,25 +98,119 @@ function el(tag, text, cls) {
   if (cls) e.className = cls;
   return e;
 }
-function badge(grade) {
+function pill(grade) {
   if (!grade) return el("span", "-");
-  const b = el("span", grade, "badge");
-  b.style.background = COLOR[grade] || "#999";
-  return b;
-}
-function metric(k, v, grade) {
-  const d = el("div", null, "metric");
-  d.appendChild(el("div", k, "k"));
-  const val = el("div", null, "v");
-  val.appendChild(document.createTextNode(v ?? "-"));
-  if (grade) { val.appendChild(document.createTextNode(" ")); val.appendChild(badge(grade)); }
-  d.appendChild(val);
-  return d;
+  const p = el("span", grade, "pill");
+  p.style.background = COLOR[grade] || "#999";
+  return p;
 }
 async function getJson(path) {
   const r = await fetch(API + path);
   if (!r.ok) throw new Error(path + " → " + r.status + " " + (await r.text()).slice(0, 200));
   return r.json();
+}
+
+const map = L.map("map", { minZoom: 9, zoomSnap: 0.25, zoomDelta: 0.5, scrollWheelZoom: false });
+function fitIsland() {
+  map.invalidateSize();
+  map.fitBounds([[33.17, 126.14], [33.58, 126.98]], { padding: [8, 8] });
+}
+function markLowZoom() {
+  map.getContainer().classList.toggle("low", map.getZoom() < 10.75);
+}
+map.on("zoomend", markLowZoom);
+window.addEventListener("load", fitIsland);
+window.addEventListener("resize", fitIsland);
+fitIsland();
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 18, attribution: "© OpenStreetMap"
+}).addTo(map);
+map.on("click", () => map.scrollWheelZoom.enable());
+const layer = L.layerGroup().addTo(map);
+const markers = {};
+
+function markerIcon(r) {
+  const w = el("div", null, "mk");
+  const n = el("div", r.pm10 ?? "-", "mk-n");
+  n.style.background = COLOR[r.pm10_grade] || "#8a8a8a";
+  w.appendChild(n);
+  w.appendChild(el("div", r.station, "mk-nm"));
+  return L.divIcon({ html: w, className: "mk-wrap", iconSize: [70, 58], iconAnchor: [35, 22], popupAnchor: [0, -22] });
+}
+
+function popupEl(r, afterGrow) {
+  const d = el("div", null, "pop");
+  d.appendChild(el("b", r.station));
+  const a = el("div", "PM10 " + (r.pm10 ?? "-") + " "); a.appendChild(pill(r.pm10_grade)); d.appendChild(a);
+  const b = el("div", "PM2.5 " + (r.pm25 ?? "-") + " "); b.appendChild(pill(r.pm25_grade)); d.appendChild(b);
+  d.appendChild(el("div", r.time + " 기준"));
+  const out = el("div", null, "pr"); out.style.display = "none";
+  const btn = el("button", "1시간 뒤?");
+  btn.style.marginTop = "8px";
+  btn.onclick = async () => {
+    out.style.display = "block";
+    out.textContent = "예측 중…";
+    try {
+      const p = await getJson("/air/predict?station=" + encodeURIComponent(r.station));
+      out.textContent = "";
+      if (p.ready) {
+        out.appendChild(document.createTextNode("1시간 뒤 PM10 약 " + p.next_pm10 + " "));
+        out.appendChild(pill(p.next_grade));
+        out.appendChild(document.createTextNode(" (평균 오차 ±" + p.avg_error + ")"));
+      } else {
+        out.textContent = p.message;
+      }
+    } catch (e) { out.textContent = String(e); }
+    if (afterGrow) afterGrow();
+  };
+  d.appendChild(btn); d.appendChild(out);
+  return d;
+}
+
+function renderSummary(s) {
+  const box = document.getElementById("sum");
+  box.textContent = "";
+  const g = s.avg_pm10_grade;
+  box.style.borderColor = COLOR[g] || "#ddd";
+  box.style.background = TINT[g] || "#fff";
+  const l = el("div");
+  l.appendChild(el("div", "제주 평균 PM10", "lab"));
+  l.appendChild(el("div", s.avg_pm10 ?? "-", "big"));
+  box.appendChild(l);
+  const r = el("div", null, "right");
+  r.appendChild(pill(g));
+  r.appendChild(el("div", "측정소 " + s.stations + "곳" + (s.mode === "demo" ? " · 연습 데이터" : "")));
+  if (s.worst_station) r.appendChild(el("div", "가장 나쁜 곳 " + s.worst_station.station + " (" + s.worst_station.pm10 + ")"));
+  box.appendChild(r);
+}
+
+function renderCards(rows) {
+  const box = document.getElementById("cards");
+  box.textContent = "";
+  rows.forEach((r) => {
+    const g = r.pm10_grade;
+    const c = el("div", null, "card");
+    c.style.background = TINT[g] || "#fff";
+    c.style.borderColor = COLOR[g] || "#ddd";
+    c.appendChild(el("div", r.station, "nm"));
+    c.appendChild(el("div", r.pm10 ?? "-", "v"));
+    const s = el("div", null, "s"); s.appendChild(pill(g)); s.appendChild(document.createTextNode(" PM2.5 " + (r.pm25 ?? "-")));
+    c.appendChild(s);
+    c.onclick = () => {
+      const m = markers[r.station];
+      if (m) { window.scrollTo({ top: 0, behavior: "smooth" }); map.flyTo(m.getLatLng(), 11); m.openPopup(); }
+    };
+    box.appendChild(c);
+  });
+}
+
+function renderLegend() {
+  const box = document.getElementById("legend");
+  box.textContent = "PM10 등급 ";
+  GRADES.forEach((g) => {
+    const p = pill(g); box.appendChild(p);
+    box.appendChild(document.createTextNode(RANGE[g] + " "));
+  });
 }
 
 async function loadStatus() {
@@ -96,14 +219,15 @@ async function loadStatus() {
   try {
     const h = await getJson("/health");
     box.appendChild(el("span", "서버 연결됨", "chip ok"));
-    box.appendChild(el("span", "모드: " + (h.mode === "demo" ? "연습 데이터" : "진짜 데이터"), "chip"));
-    box.appendChild(el("span", "저장소: " + h.store, "chip"));
-    box.appendChild(el("span", API, "chip"));
+    box.appendChild(el("span", h.mode === "demo" ? "연습 데이터" : "진짜 데이터", "chip"));
+    box.appendChild(el("span", "저장소 " + h.store, "chip"));
   } catch (e) {
     box.appendChild(el("span", "서버에 연결할 수 없어요", "chip bad"));
-    box.appendChild(el("span", API, "chip"));
     document.getElementById("err").textContent = String(e);
   }
+  const rb = el("button", "새로고침");
+  rb.onclick = () => { loadStatus(); load(); };
+  box.appendChild(rb);
 }
 
 async function load() {
@@ -111,55 +235,29 @@ async function load() {
   err.textContent = "";
   try {
     const [s, rows] = await Promise.all([getJson("/air/summary"), getJson("/air/latest")]);
-    const m = document.getElementById("metrics");
-    m.textContent = "";
-    m.appendChild(metric("측정소 수", s.stations));
-    m.appendChild(metric("평균 PM10", s.avg_pm10, s.avg_pm10_grade));
-    m.appendChild(metric("평균 PM2.5", s.avg_pm25));
-    m.appendChild(metric("가장 나쁜 곳", s.worst_station ? s.worst_station.station + " (" + s.worst_station.pm10 + ")" : "-"));
-
-    const tb = document.getElementById("rows");
-    tb.textContent = "";
-    if (!rows.length) {
-      const tr = el("tr"); const td = el("td", "아직 수집된 데이터가 없어요. 서버가 첫 수집을 마칠 때까지 잠시 기다려 주세요.");
-      td.colSpan = 5; tr.appendChild(td); tb.appendChild(tr);
-    }
+    renderSummary(s);
+    layer.clearLayers();
+    Object.keys(markers).forEach((k) => delete markers[k]);
+    const noPos = [];
     rows.forEach((r) => {
-      const tr = el("tr");
-      tr.appendChild(el("td", r.station));
-      tr.appendChild(el("td", r.time.slice(11)));
-      const t10 = el("td"); t10.appendChild(document.createTextNode((r.pm10 ?? "-") + " ")); t10.appendChild(badge(r.pm10_grade)); tr.appendChild(t10);
-      const t25 = el("td"); t25.appendChild(document.createTextNode((r.pm25 ?? "-") + " ")); t25.appendChild(badge(r.pm25_grade)); tr.appendChild(t25);
-      const tp = el("td"); const b = el("button", "1시간 뒤?"); b.onclick = () => predict(r.station); tp.appendChild(b); tr.appendChild(tp);
-      tb.appendChild(tr);
+      const pos = POS[r.station];
+      if (!pos) { noPos.push(r.station); return; }
+      const m = L.marker(pos, { icon: markerIcon(r) });
+      m.bindPopup(popupEl(r, () => {
+        m.getPopup().update();
+        map.panInside(m.getLatLng(), { paddingTopLeft: [10, 250], paddingBottomRight: [10, 10] });
+      }), { minWidth: 200, autoPanPaddingTopLeft: [10, 40] });
+      m.addTo(layer);
+      markers[r.station] = m;
     });
+    renderCards(rows);
+    if (noPos.length) err.textContent = "지도 좌표가 없는 측정소: " + noPos.join(", ") + " (목록에서만 보입니다)";
   } catch (e) {
     err.textContent = String(e);
   }
 }
 
-async function predict(station) {
-  const box = document.getElementById("pred");
-  box.textContent = "";
-  try {
-    const p = await getJson("/air/predict?station=" + encodeURIComponent(station));
-    const d = el("div", null, "pred");
-    d.appendChild(el("b", station));
-    if (p.ready) {
-      d.appendChild(document.createTextNode(" 1시간 뒤 PM10 약 "));
-      d.appendChild(el("b", p.next_pm10));
-      d.appendChild(document.createTextNode(" "));
-      d.appendChild(badge(p.next_grade));
-      d.appendChild(document.createTextNode(" (평균 오차 ±" + p.avg_error + ")"));
-    } else {
-      d.appendChild(document.createTextNode(" " + p.message));
-    }
-    box.appendChild(d);
-  } catch (e) {
-    document.getElementById("err").textContent = String(e);
-  }
-}
-
+renderLegend();
 loadStatus();
 load();
 </script>
