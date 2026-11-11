@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>제주 미세먼지</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --line:#e3e2dc; --text:#222; --sub:#6b6a64; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font-family:system-ui,-apple-system,"Segoe UI","Malgun Gothic",sans-serif; line-height:1.6; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--sub); font-size:14px; margin:0 0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:12px; }
+  .status { font-size:13px; color:var(--sub); display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .chip { border:1px solid var(--line); border-radius:999px; padding:1px 10px; background:#fafaf8; }
+  .chip.ok { border-color:#27ae60; color:#1e8449; }
+  .chip.bad { border-color:#eb5757; color:#c0392b; }
+  .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .metric { background:#fafaf8; border-radius:8px; padding:10px 12px; }
+  .metric .k { font-size:12px; color:var(--sub); }
+  .metric .v { font-size:22px; font-weight:600; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th { color:var(--sub); font-weight:500; font-size:13px; }
+  .badge { color:#fff; border-radius:6px; padding:1px 8px; font-size:12px; white-space:nowrap; }
+  button { font:inherit; font-size:13px; padding:4px 10px; border:1px solid var(--line); background:#fff;
+           border-radius:8px; cursor:pointer; }
+  button:hover { background:#f0f0ec; }
+  .pred { margin-top:12px; padding:10px 12px; background:#f1f6ff; border-radius:8px; font-size:14px; }
+  .err { color:#c0392b; font-size:14px; white-space:pre-wrap; }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>제주 미세먼지</h1>
+  <p class="sub">공공데이터(에어코리아) → FastAPI 가공 → Supabase 저장 → 이 화면은 결과만 받아 보여 줍니다.</p>
+
+  <div class="card">
+    <div class="status" id="status">서버 연결 확인 중…</div>
+  </div>
+
+  <div class="card">
+    <div class="metrics" id="metrics"></div>
+  </div>
+
+  <div class="card">
+    <div class="scroll">
+      <table>
+        <thead><tr><th>측정소</th><th>시각</th><th>PM10</th><th>PM2.5</th><th>예측</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="pred"></div>
+    <p class="err" id="err"></p>
+  </div>
+</main>
+
+<script src="config.js"></script>
+<script>
+const API = window.API_BASE;
+const COLOR = { "좋음": "#2f80ed", "보통": "#27ae60", "나쁨": "#f2994a", "매우나쁨": "#eb5757" };
+
+function el(tag, text, cls) {
+  const e = document.createElement(tag);
+  if (text !== undefined && text !== null) e.textContent = text;
+  if (cls) e.className = cls;
+  return e;
+}
+function badge(grade) {
+  if (!grade) return el("span", "-");
+  const b = el("span", grade, "badge");
+  b.style.background = COLOR[grade] || "#999";
+  return b;
+}
+function metric(k, v, grade) {
+  const d = el("div", null, "metric");
+  d.appendChild(el("div", k, "k"));
+  const val = el("div", null, "v");
+  val.appendChild(document.createTextNode(v ?? "-"));
+  if (grade) { val.appendChild(document.createTextNode(" ")); val.appendChild(badge(grade)); }
+  d.appendChild(val);
+  return d;
+}
+async function getJson(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(path + " → " + r.status + " " + (await r.text()).slice(0, 200));
+  return r.json();
+}
+
+async function loadStatus() {
+  const box = document.getElementById("status");
+  box.textContent = "";
+  try {
+    const h = await getJson("/health");
+    box.appendChild(el("span", "서버 연결됨", "chip ok"));
+    box.appendChild(el("span", "모드: " + (h.mode === "demo" ? "연습 데이터" : "진짜 데이터"), "chip"));
+    box.appendChild(el("span", "저장소: " + h.store, "chip"));
+    box.appendChild(el("span", API, "chip"));
+  } catch (e) {
+    box.appendChild(el("span", "서버에 연결할 수 없어요", "chip bad"));
+    box.appendChild(el("span", API, "chip"));
+    document.getElementById("err").textContent = String(e);
+  }
+}
+
+async function load() {
+  const err = document.getElementById("err");
+  err.textContent = "";
+  try {
+    const [s, rows] = await Promise.all([getJson("/air/summary"), getJson("/air/latest")]);
+    const m = document.getElementById("metrics");
+    m.textContent = "";
+    m.appendChild(metric("측정소 수", s.stations));
+    m.appendChild(metric("평균 PM10", s.avg_pm10, s.avg_pm10_grade));
+    m.appendChild(metric("평균 PM2.5", s.avg_pm25));
+    m.appendChild(metric("가장 나쁜 곳", s.worst_station ? s.worst_station.station + " (" + s.worst_station.pm10 + ")" : "-"));
+
+    const tb = document.getElementById("rows");
+    tb.textContent = "";
+    if (!rows.length) {
+      const tr = el("tr"); const td = el("td", "아직 수집된 데이터가 없어요. 서버가 첫 수집을 마칠 때까지 잠시 기다려 주세요.");
+      td.colSpan = 5; tr.appendChild(td); tb.appendChild(tr);
+    }
+    rows.forEach((r) => {
+      const tr = el("tr");
+      tr.appendChild(el("td", r.station));
+      tr.appendChild(el("td", r.time.slice(11)));
+      const t10 = el("td"); t10.appendChild(document.createTextNode((r.pm10 ?? "-") + " ")); t10.appendChild(badge(r.pm10_grade)); tr.appendChild(t10);
+      const t25 = el("td"); t25.appendChild(document.createTextNode((r.pm25 ?? "-") + " ")); t25.appendChild(badge(r.pm25_grade)); tr.appendChild(t25);
+      const tp = el("td"); const b = el("button", "1시간 뒤?"); b.onclick = () => predict(r.station); tp.appendChild(b); tr.appendChild(tp);
+      tb.appendChild(tr);
+    });
+  } catch (e) {
+    err.textContent = String(e);
+  }
+}
+
+async function predict(station) {
+  const box = document.getElementById("pred");
+  box.textContent = "";
+  try {
+    const p = await getJson("/air/predict?station=" + encodeURIComponent(station));
+    const d = el("div", null, "pred");
+    d.appendChild(el("b", station));
+    if (p.ready) {
+      d.appendChild(document.createTextNode(" 1시간 뒤 PM10 약 "));
+      d.appendChild(el("b", p.next_pm10));
+      d.appendChild(document.createTextNode(" "));
+      d.appendChild(badge(p.next_grade));
+      d.appendChild(document.createTextNode(" (평균 오차 ±" + p.avg_error + ")"));
+    } else {
+      d.appendChild(document.createTextNode(" " + p.message));
+    }
+    box.appendChild(d);
+  } catch (e) {
+    document.getElementById("err").textContent = String(e);
+  }
+}
+
+loadStatus();
+load();
+</script>
+</body>
+</html>
